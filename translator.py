@@ -1,58 +1,27 @@
 import requests
 from bs4 import BeautifulSoup
+import argparse
 
 URL = "https://context.reverso.net/translation"
-LANGUAGE = {
-    '1': 'Arabic',
-    '2': 'German',
-    '3': 'English',
-    '4': 'Spanish',
-    '5': 'French',
-    '6': 'Hebrew',
-    '7': 'Japanese',
-    '8': 'Dutch',
-    '9': 'Polish',
-    '10': 'Portuguese',
-    '11': 'Romanian',
-    '12': 'Russian',
-    '13': 'Turkish',
-}
+LANGUAGE = ['Arabic', 'German', 'English', 'Spanish', 'French', 'Hebrew', 'Japanese',
+            'Dutch', 'Polish', 'Portuguese', 'Romanian', 'Russian', 'Turkish']
 
 
-def get_input():
-    print('Hello, welcome to the translator. Translator supports:\n')
-    for key in LANGUAGE:
-        print(f'{key}: {LANGUAGE[key]}')
-
-    # Get from language num
-    while True:
-        from_num = input('Type the number of your language:\n')
-        if from_num.isdigit() and 1 <= int(from_num) <= 13:
-            break
-        else:
-            print('Invalid input!')
-
-    # Get to language num
-    while True:
-        to_num = input('Type the number of your language:\n')
-        if to_num.isdigit() and 0 <= int(to_num) <= 13:
-            break
-        else:
-            print('Invalid input!')
-
-    word = input('Type the word you want to translate:\n')
-    return from_num, to_num, word
-
-
-def get_response(url):
+def get_response(from_, to_, word):
     headers = {
         'User-Agent': 'Mozilla/5.0',
     }
+    url = f'{URL}/{from_}-{to_}/{word}'
     response = requests.get(url, headers=headers)
-    response.raise_for_status()
-    # print(response.status_code, 'OK')
-    soup = BeautifulSoup(response.content, 'html.parser')
-    return soup
+    if response:
+        soup = BeautifulSoup(response.content, 'html.parser')
+        return soup
+    elif response.status_code == 404:
+        print(f"Sorry, unable to find {word}")
+        quit()
+    else:
+        print('Something wrong with your internet connection')
+        quit()
 
 
 def get_info(soup, mode):
@@ -82,50 +51,47 @@ def get_info(soup, mode):
 
 
 def main():
+    parser = argparse.ArgumentParser(description='')
+    parser.add_argument("from_language", default=None)
+    parser.add_argument("to_language", default=None)
+    parser.add_argument("word", default=None)
 
-    user_input = get_input()
-    from_num = user_input[0]
-    to_num = user_input[1]
-    word = user_input[2]
+    args = parser.parse_args()
+    from_language = args.from_language.lower()
+    to_language = args.to_language.lower()
+    word = args.word.lower()
 
-    from_language = LANGUAGE[from_num]
-    to_languages = []
-    if to_num != '0':
-        to_languages.append(LANGUAGE[to_num])
-    else:
-        for key in LANGUAGE:
-            if key != from_num:
-                to_languages.append(LANGUAGE[key])
+    if from_language.title() not in LANGUAGE:
+        print(f"Sorry, the program doesn't support {from_language}")
+        quit()
 
-    if len(to_languages) == 1:
-        target_url = f'{URL}/{from_language.lower()}-{to_languages[0].lower()}/{word}'
-        soup = get_response(target_url)
+    if to_language == 'all':
+        for item in LANGUAGE:
+            if item.lower() != from_language:
+                soup = get_response(from_language, item.lower(), word)
+
+                contain = get_info(soup, 'single_line')
+                with open(f'{word}.txt', 'a') as file:
+                    file.write(f'{item.capitalize()} Translations:\n{contain[0]}\n')
+                    file.write(f'\n{item} Examples:\n{contain[1]}:\n{contain[2]}\n\n\n')
+    elif to_language.title() in LANGUAGE:
+        soup = get_response(from_language, to_language, word)
 
         contains = get_info(soup, 'multi_lines')
-
         with open(f'{word}.txt', 'a') as file:
-            file.write(f'\n{to_languages[0]} Translations:\n')
-            for item in contains[0][0:5]:
+            file.write(f'\n{to_language.capitalize()} Translations:\n')
+            for item in contains[0]:
                 file.write(f'{item}\n')
-            file.write(f'\n{to_languages[0]} Examples:\n')
-            for i in range(5):
+            file.write(f'\n{to_language} Examples:\n')
+            for i in range(min(len(contains[1]), len(contains[2]))):
                 file.write(f'{contains[1][i]}\n')
                 file.write(f'{contains[2][i]}\n\n')
-
     else:
-        for to_language in to_languages:
-            target_url = f'{URL}/{from_language.lower()}-{to_language.lower()}/{word}'
-            soup = get_response(target_url)
-
-            contain = get_info(soup, 'single_line')
-            with open(f'{word}.txt', 'a') as file:
-                file.write(f'{to_language} Translations:\n{contain[0]}\n')
-                file.write(f'\n{to_language} Examples:\n{contain[1]}:\n{contain[2]}\n\n\n')
+        print(f"Sorry, the program doesn't support {to_language}")
+        quit()
 
     with open(f'{word}.txt', 'r') as file:
-        data = file.readlines()
-        for line in data:
-            print(line, end='')
+        print(file.read())
 
 
 if __name__ == '__main__':
